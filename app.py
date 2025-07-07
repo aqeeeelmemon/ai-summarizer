@@ -3,19 +3,21 @@ import openai
 import PyPDF2
 import docx
 import io
+from pptx import Presentation
 from fpdf import FPDF
 
-# Page settings
+# Page config
 st.set_page_config(page_title="AI File Summarizer", layout="centered")
 st.title("📁 AI File Summarizer & Flowchart Generator")
 
-# Sidebar API Key
+# Sidebar
 api_key = st.sidebar.text_input("🔑 Enter your OpenAI API Key", type="password")
 openai.api_key = api_key
 
-# File Upload
-uploaded_file = st.file_uploader("Upload your file (PDF, Word or TXT)", type=["pdf", "docx", "txt"])
+# Upload
+uploaded_file = st.file_uploader("Upload your file (PDF, Word, TXT, or PPT)", type=["pdf", "docx", "txt", "pptx"])
 
+# Extractors
 def extract_text_from_pdf(file):
     reader = PyPDF2.PdfReader(file)
     return "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
@@ -27,6 +29,16 @@ def extract_text_from_docx(file):
 def extract_text_from_txt(file):
     return file.read().decode('utf-8')
 
+def extract_text_from_pptx(file):
+    prs = Presentation(file)
+    text = ""
+    for slide in prs.slides:
+        for shape in slide.shapes:
+            if hasattr(shape, "text"):
+                text += shape.text + "\n"
+    return text
+
+# Download helper
 def download_as_pdf(text, filename="summary_output.pdf"):
     pdf = FPDF()
     pdf.add_page()
@@ -38,6 +50,7 @@ def download_as_pdf(text, filename="summary_output.pdf"):
     pdf.output(output)
     return output
 
+# Main
 if uploaded_file and api_key:
     file_ext = uploaded_file.name.split(".")[-1]
 
@@ -48,6 +61,8 @@ if uploaded_file and api_key:
             text = extract_text_from_docx(uploaded_file)
         elif file_ext == "txt":
             text = extract_text_from_txt(uploaded_file)
+        elif file_ext == "pptx":
+            text = extract_text_from_pptx(uploaded_file)
         else:
             st.error("Unsupported file type.")
             st.stop()

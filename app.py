@@ -15,11 +15,7 @@ st.markdown("<h4 style='text-align: center; color: gray;'>Made by Aqeel Memon</h
 api_key = st.sidebar.text_input("🔑 Enter your OpenRouter API Key", type="password")
 st.sidebar.markdown("Get a key from [openrouter.ai](https://openrouter.ai)")
 
-# Base URL override for OpenRouter
-openai.api_key = api_key
-openai.api_base = "https://openrouter.ai/api/v1"
-
-# --- Choose Model ---
+# --- Model Selector ---
 model = st.sidebar.selectbox("🤖 Choose AI Model", [
     "deepseek-ai/deepseek-coder",
     "mistralai/mixtral-8x7b-instruct",
@@ -30,7 +26,7 @@ model = st.sidebar.selectbox("🤖 Choose AI Model", [
 # --- File Upload ---
 uploaded_file = st.file_uploader("Upload your file (PDF, DOCX, TXT, PPTX)", type=["pdf", "docx", "txt", "pptx"])
 
-# --- File Handlers ---
+# --- File Extractors ---
 def extract_text_from_pdf(file):
     reader = PyPDF2.PdfReader(file)
     return "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
@@ -51,6 +47,7 @@ def extract_text_from_pptx(file):
                 text += shape.text + "\n"
     return text
 
+# --- PDF Download Function ---
 def download_as_pdf(text, filename="summary_output.pdf"):
     pdf = FPDF()
     pdf.add_page()
@@ -62,7 +59,7 @@ def download_as_pdf(text, filename="summary_output.pdf"):
     pdf.output(output)
     return output
 
-# --- Main App ---
+# --- MAIN LOGIC ---
 if uploaded_file and api_key:
     file_ext = uploaded_file.name.split(".")[-1]
 
@@ -79,7 +76,7 @@ if uploaded_file and api_key:
             st.error("Unsupported file type.")
             st.stop()
 
-    # Prompt to summarize and visualize
+    # Prompt to AI
     prompt = f"""
     Please summarize the following document in 5–7 lines.
     Then give bullet-point notes by topic.
@@ -89,20 +86,29 @@ if uploaded_file and api_key:
     {text}
     """
 
-    with st.spinner("🤖 Thinking with your chosen model..."):
+    with st.spinner("🤖 Talking to your chosen model..."):
         try:
-            response = openai.ChatCompletion.create(
+            # Correct usage of OpenAI SDK with OpenRouter
+            client = openai.OpenAI(
+                api_key=api_key,
+                base_url="https://openrouter.ai/api/v1"
+            )
+
+            response = client.chat.completions.create(
                 model=model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.4
             )
-            result = response.choices[0].message["content"]
+
+            result = response.choices[0].message.content
+
             st.subheader("📝 Summary, Notes, and Flowchart")
             st.text_area("Result", result, height=400)
 
             pdf_data = download_as_pdf(result)
             st.download_button("📥 Download as PDF", data=pdf_data, file_name="summary_output.pdf", mime="application/pdf")
 
-            st.success("✅ Done!")
+            st.success("✅ All done!")
+
         except Exception as e:
-            st.error(f"🚫 Error: {str(e)}")
+            st.error(f"❌ Something went wrong: {str(e)}")

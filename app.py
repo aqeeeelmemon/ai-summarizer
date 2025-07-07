@@ -6,16 +6,15 @@ import io
 from pptx import Presentation
 from fpdf import FPDF
 
-# --- Streamlit Config ---
+# --- Streamlit Setup ---
 st.set_page_config(page_title="AI File Summarizer", layout="centered")
 st.title("📁 AI File Summarizer & Flowchart Generator")
 st.markdown("<h4 style='text-align: center; color: gray;'>Made by Aqeel Memon</h4>", unsafe_allow_html=True)
 
-# --- OpenRouter Setup ---
+# --- Sidebar ---
 api_key = st.sidebar.text_input("🔑 Enter your OpenRouter API Key", type="password")
-st.sidebar.markdown("Get a key from [openrouter.ai](https://openrouter.ai)")
+st.sidebar.markdown("Get one free from [openrouter.ai](https://openrouter.ai)")
 
-# --- Model Selector ---
 model = st.sidebar.selectbox("🤖 Choose AI Model", [
     "deepseek-ai/deepseek-coder",
     "mistralai/mixtral-8x7b-instruct",
@@ -24,16 +23,16 @@ model = st.sidebar.selectbox("🤖 Choose AI Model", [
 ])
 
 # --- File Upload ---
-uploaded_file = st.file_uploader("Upload your file (PDF, DOCX, TXT, PPTX)", type=["pdf", "docx", "txt", "pptx"])
+uploaded_file = st.file_uploader("Upload PDF, DOCX, TXT, or PPTX", type=["pdf", "docx", "txt", "pptx"])
 
-# --- File Extractors ---
+# --- File Readers ---
 def extract_text_from_pdf(file):
     reader = PyPDF2.PdfReader(file)
     return "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
 
 def extract_text_from_docx(file):
     doc = docx.Document(file)
-    return "\n".join([para.text for para in doc.paragraphs])
+    return "\n".join([p.text for p in doc.paragraphs])
 
 def extract_text_from_txt(file):
     return file.read().decode('utf-8')
@@ -47,8 +46,8 @@ def extract_text_from_pptx(file):
                 text += shape.text + "\n"
     return text
 
-# --- PDF Download Function ---
-def download_as_pdf(text, filename="summary_output.pdf"):
+# --- PDF Export ---
+def download_as_pdf(text):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
@@ -57,58 +56,56 @@ def download_as_pdf(text, filename="summary_output.pdf"):
         pdf.multi_cell(0, 10, line)
     output = io.BytesIO()
     pdf.output(output)
+    output.seek(0)
     return output
 
-# --- MAIN LOGIC ---
+# --- Main Logic ---
 if uploaded_file and api_key:
-    file_ext = uploaded_file.name.split(".")[-1]
+    ext = uploaded_file.name.split('.')[-1].lower()
 
-    with st.spinner("🔍 Extracting text..."):
-        if file_ext == "pdf":
+    with st.spinner("📄 Reading file..."):
+        if ext == "pdf":
             text = extract_text_from_pdf(uploaded_file)
-        elif file_ext == "docx":
+        elif ext == "docx":
             text = extract_text_from_docx(uploaded_file)
-        elif file_ext == "txt":
+        elif ext == "txt":
             text = extract_text_from_txt(uploaded_file)
-        elif file_ext == "pptx":
+        elif ext == "pptx":
             text = extract_text_from_pptx(uploaded_file)
         else:
             st.error("Unsupported file type.")
             st.stop()
 
-    # Prompt to AI
     prompt = f"""
-    Please summarize the following document in 5–7 lines.
-    Then give bullet-point notes by topic.
-    Then create a process flowchart in Mermaid.js markdown.
+    Summarize the following document in 5–7 lines.
+    Then write structured bullet-point notes.
+    Then create a flowchart in Mermaid.js format.
 
     Content:
     {text}
     """
 
-    with st.spinner("🤖 Talking to your chosen model..."):
-        try:
-            # Correct usage of OpenAI SDK with OpenRouter
-            client = openai.OpenAI(
-                api_key=api_key,
-                base_url="https://openrouter.ai/api/v1"
-            )
+    try:
+        # ✅ New OpenAI SDK pattern with OpenRouter
+        client = openai.OpenAI(
+            api_key=api_key,
+            base_url="https://openrouter.ai/api/v1"
+        )
 
-            response = client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.4
-            )
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.4
+        )
 
-            result = response.choices[0].message.content
+        result = response.choices[0].message.content
 
-            st.subheader("📝 Summary, Notes, and Flowchart")
-            st.text_area("Result", result, height=400)
+        st.subheader("📄 Result")
+        st.text_area("Summary + Notes + Flowchart", result, height=400)
 
-            pdf_data = download_as_pdf(result)
-            st.download_button("📥 Download as PDF", data=pdf_data, file_name="summary_output.pdf", mime="application/pdf")
+        pdf_bytes = download_as_pdf(result)
+        st.download_button("📥 Download as PDF", data=pdf_bytes, file_name="summary_output.pdf", mime="application/pdf")
+        st.success("✅ Done!")
 
-            st.success("✅ All done!")
-
-        except Exception as e:
-            st.error(f"❌ Something went wrong: {str(e)}")
+    except Exception as e:
+        st.error(f"⚠️ Error: {str(e)}")

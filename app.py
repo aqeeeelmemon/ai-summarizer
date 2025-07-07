@@ -9,6 +9,8 @@ from fpdf import FPDF
 # Page config
 st.set_page_config(page_title="AI File Summarizer", layout="centered")
 st.title("📁 AI File Summarizer & Flowchart Generator")
+st.markdown("<h4 style='text-align: center; color: gray;'>Made by Aqeel Memon</h4>", unsafe_allow_html=True)
+
 
 # Sidebar
 api_key = st.sidebar.text_input("🔑 Enter your OpenAI API Key", type="password")

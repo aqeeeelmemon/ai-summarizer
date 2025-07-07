@@ -6,20 +6,19 @@ import io
 from pptx import Presentation
 from fpdf import FPDF
 
-# Page config
+# --- Streamlit Config ---
 st.set_page_config(page_title="AI File Summarizer", layout="centered")
 st.title("📁 AI File Summarizer & Flowchart Generator")
 st.markdown("<h4 style='text-align: center; color: gray;'>Made by Aqeel Memon</h4>", unsafe_allow_html=True)
 
-
-# Sidebar
+# --- API Key ---
 api_key = st.sidebar.text_input("🔑 Enter your OpenAI API Key", type="password")
-openai.api_key = api_key
+client = openai.OpenAI(api_key=api_key)
 
-# Upload
-uploaded_file = st.file_uploader("Upload your file (PDF, Word, TXT, or PPT)", type=["pdf", "docx", "txt", "pptx"])
+# --- File Upload ---
+uploaded_file = st.file_uploader("Upload your file (PDF, DOCX, TXT, PPTX)", type=["pdf", "docx", "txt", "pptx"])
 
-# Extractors
+# --- File Handlers ---
 def extract_text_from_pdf(file):
     reader = PyPDF2.PdfReader(file)
     return "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
@@ -40,7 +39,7 @@ def extract_text_from_pptx(file):
                 text += shape.text + "\n"
     return text
 
-# Download helper
+# --- PDF Export ---
 def download_as_pdf(text, filename="summary_output.pdf"):
     pdf = FPDF()
     pdf.add_page()
@@ -52,7 +51,7 @@ def download_as_pdf(text, filename="summary_output.pdf"):
     pdf.output(output)
     return output
 
-# Main
+# --- Main App ---
 if uploaded_file and api_key:
     file_ext = uploaded_file.name.split(".")[-1]
 
@@ -69,6 +68,7 @@ if uploaded_file and api_key:
             st.error("Unsupported file type.")
             st.stop()
 
+    # GPT Prompt
     prompt = f"""
     Analyze the following content and:
     1. Give a concise summary (5–7 lines).
@@ -79,17 +79,18 @@ if uploaded_file and api_key:
     {text}
     """
 
-    with st.spinner("🧠 Talking to GPT-4..."):
-        response = openai.ChatCompletion.create(
+    with st.spinner("🧠 Thinking..."):
+        response = client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.4
         )
-        result = response['choices'][0]['message']['content']
+        result = response.choices[0].message.content
 
     st.subheader("📝 Summary, Notes, and Flowchart")
     st.text_area("Result", result, height=400)
 
     pdf_data = download_as_pdf(result)
     st.download_button("📥 Download as PDF", data=pdf_data, file_name="summary_output.pdf", mime="application/pdf")
-    st.success("✅ Done! You can download or copy your results.")
+    st.success("✅ All done!")
+

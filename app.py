@@ -11,9 +11,21 @@ st.set_page_config(page_title="AI File Summarizer", layout="centered")
 st.title("📁 AI File Summarizer & Flowchart Generator")
 st.markdown("<h4 style='text-align: center; color: gray;'>Made by Aqeel Memon</h4>", unsafe_allow_html=True)
 
-# --- API Key ---
-api_key = st.sidebar.text_input("🔑 Enter your OpenAI API Key", type="password")
-client = openai.OpenAI(api_key=api_key)
+# --- OpenRouter Setup ---
+api_key = st.sidebar.text_input("🔑 Enter your OpenRouter API Key", type="password")
+st.sidebar.markdown("Get a key from [openrouter.ai](https://openrouter.ai)")
+
+# Base URL override for OpenRouter
+openai.api_key = api_key
+openai.api_base = "https://openrouter.ai/api/v1"
+
+# --- Choose Model ---
+model = st.sidebar.selectbox("🤖 Choose AI Model", [
+    "deepseek-ai/deepseek-coder",
+    "mistralai/mixtral-8x7b-instruct",
+    "meta-llama/llama-3-70b-instruct",
+    "anthropic/claude-3-sonnet"
+])
 
 # --- File Upload ---
 uploaded_file = st.file_uploader("Upload your file (PDF, DOCX, TXT, PPTX)", type=["pdf", "docx", "txt", "pptx"])
@@ -39,7 +51,6 @@ def extract_text_from_pptx(file):
                 text += shape.text + "\n"
     return text
 
-# --- PDF Export ---
 def download_as_pdf(text, filename="summary_output.pdf"):
     pdf = FPDF()
     pdf.add_page()
@@ -68,29 +79,30 @@ if uploaded_file and api_key:
             st.error("Unsupported file type.")
             st.stop()
 
-    # GPT Prompt
+    # Prompt to summarize and visualize
     prompt = f"""
-    Analyze the following content and:
-    1. Give a concise summary (5–7 lines).
-    2. Provide structured topic-wise bullet notes.
-    3. Create a flowchart using Mermaid syntax.
+    Please summarize the following document in 5–7 lines.
+    Then give bullet-point notes by topic.
+    Then create a process flowchart in Mermaid.js markdown.
 
     Content:
     {text}
     """
 
-    with st.spinner("🧠 Thinking..."):
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.4
-        )
-        result = response.choices[0].message.content
+    with st.spinner("🤖 Thinking with your chosen model..."):
+        try:
+            response = openai.ChatCompletion.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.4
+            )
+            result = response.choices[0].message["content"]
+            st.subheader("📝 Summary, Notes, and Flowchart")
+            st.text_area("Result", result, height=400)
 
-    st.subheader("📝 Summary, Notes, and Flowchart")
-    st.text_area("Result", result, height=400)
+            pdf_data = download_as_pdf(result)
+            st.download_button("📥 Download as PDF", data=pdf_data, file_name="summary_output.pdf", mime="application/pdf")
 
-    pdf_data = download_as_pdf(result)
-    st.download_button("📥 Download as PDF", data=pdf_data, file_name="summary_output.pdf", mime="application/pdf")
-    st.success("✅ All done!")
-
+            st.success("✅ Done!")
+        except Exception as e:
+            st.error(f"🚫 Error: {str(e)}")

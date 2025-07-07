@@ -81,7 +81,7 @@ if uploaded_file and api_key:
 
     with st.spinner("🧠 Thinking..."):
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.4
         )
